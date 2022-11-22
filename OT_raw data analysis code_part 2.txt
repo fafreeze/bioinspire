@@ -1,0 +1,15 @@
+clear all
+ T=readtable('AVERAGE DATA.xlsx','Sheet','iph-1','Range','A1:D25');
+ 
+ w = T.w;
+ Gr = smooth(T.Greal(:));
+ Gim = smooth(T.Gimag(:));
+ n = smooth(T.n(:));
+
+
+figure (1)
+loglog(w,Gr,'r-',w,Gim,'b.');
+
+%Put smoothed data into matrix
+ p = {w,Gr,Gim,n};
+ Tp = cell2mat(p);

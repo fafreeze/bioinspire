@@ -1,0 +1,108 @@
+
+ clear all
+% info = h5info('220210521-171644 Marker 7.h5');
+ bead1 = h5read('20210730-165847 Marker 17.h5','/Bead position/Bead 1 X');
+ bead1y = h5read('20210730-165847 Marker 17.h5','/Bead position/Bead 1 Y');
+
+t = (double(bead1.Timestamp-bead1.Timestamp(1)))/10^9; %sec
+% 8.746px = 1um ??
+
+%Trajectory 1
+bead_1x  = 10^(-6)*double(bead1.Value-bead1.Value(1)); %m
+bead_1y = 10^(-6)*double(bead1y.Value-bead1y.Value(1));  %m
+
+% Obtain the variance in bead position <x-xeq>2
+var_x = var(bead_1x(1:900));  
+% compare with var in y-direction
+var_y = var(bead_1y(1:900));
+
+% select trajectories with same variance for x and y , 
+%indicating that the trapping potential is circular in the XY plane and
+%therefore, the estimation of the trap stiffness from the harmonic form is valid
+
+% k - stiffness of OT
+kb = 1.380649*10^(-23); %J-1K-1%Boltzman const
+T = 273 + 22; %K
+kx = (kb*T)/var_x; %N/m  --> pN/um=uN/m
+ky = (kb*T)/var_y;
+
+%Put the time and trajectory data into matrix
+c = {t,bead_1x};
+Tb = cell2mat(c);
+
+%   figure(1)
+%  plot(t(500:2000),bead_1x(500:2000),'LineWidth',2);  %i used plot of raw data to find more stable data range manually, you may find a better way to select data range
+
+
+% get normalized position autocorrelation function
+[r,lags] = xcorr(bead_1x(500:2000),'normalized');  %here i also manually put the data range I selected from plotting the raw data
+lag_raw = transpose(lags*0.01);
+%lag_short = lag_raw(3004:6007);  
+lag_short = lag_raw(501:1001);
+%A_raw = r(3004:6007);  %autocorrel function for tau 0 to 200sec
+A_raw = r(501:1001); 
+figure(2)
+stem(lag_short,A_raw);
+
+%perform FT for A(tau) to get A(w)
+lag = lag_short(2:end);
+A = A_raw(2:end);
+w = 1./(double(lag));   %freqeuncy range
+k = length(lag);
+
+syms i  
+x=w;
+sum = 0;
+Rh = 0.5*10^-6; %m   %bead radius
+
+for c = 2:k
+  a=((A(c)-A(c-1))/(lag(c)-lag(c-1)))*(exp(-1i.*x*lag(c-1))-exp(-1i.*x*lag(c))) ;
+  sum=sum+a;
+end
+ First_term=(x*A_raw(1)*1i + ((1-exp(-x*lag(1)*1i))*(A(1)-A_raw(1)))/lag(1));
+ Aw =-(First_term+ sum)./(x.^2);
+ 
+ Gstar=(kx/6/pi/Rh)*((1i.*x.*Aw)./(1-1i.*x.*Aw));
+ 
+ Greal= real(Gstar);
+ Gim= imag(Gstar);
+ 
+ n = Gim./x;
+ 
+
+
+%by fitting it to signle or multiexponential function
+
+figure (3) %try log scale
+loglog(w,Greal,'r')
+hold on
+loglog(w,Gim,'b');
+hold off
+
+g = smooth(Greal(:));
+G = smooth(Gim(:));
+
+figure (4)
+loglog(w,g,'r-',w,G,'b.');
+
+
+a = mean(reshape(Greal(15:500),6,[])); %putting each 6points into one column then averageing each column;
+Gr = smooth(transpose (a));
+
+b = mean(reshape(Gim(15:500),6,[]));
+Gi = smooth(transpose (b));
+
+d = mean(reshape(w(15:500),6,[]));
+f = transpose (d);
+
+figure (5)
+loglog(f,Gr,'r',f,Gi,'b');
+
+j = mean(reshape(n(15:500),6,[]));
+n_sm = smooth(transpose (j));
+figure (6)
+loglog(f,n_sm,'b.');
+
+%Put resampled and smoothed data into matrix
+ p = {f,Gr,Gi,n_sm};
+ Tp = cell2mat(p);
